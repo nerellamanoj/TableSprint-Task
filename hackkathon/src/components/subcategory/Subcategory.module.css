@@ -1,0 +1,13 @@
+/* Add this CSS to your stylesheet */
+.MuiModal-root {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.MuiPaper-root {
+    width: 250px; /* Adjust width as necessary */
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1);
+}

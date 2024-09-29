@@ -1,22 +1,23 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { TextField, InputAdornment, IconButton } from '@mui/material';
 import { Visibility, VisibilityOff } from '@mui/icons-material';
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 import Cookies from 'js-cookie';
-import { useNavigate } from 'react-router-dom';
-import { Navigate } from 'react-router-dom';
 
-interface LoginProps {
-  onLogin: (email: string, password: string) => void;
-}
-
-function Login({ onLogin }: LoginProps) {
+function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const token = Cookies.get('token');
+    if (token) {
+      navigate('/dashboard');
+    }
+  }, [navigate]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -24,26 +25,26 @@ function Login({ onLogin }: LoginProps) {
       setError('Enter Email and Password');
       return;
     }
+
     const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
     if (!emailRegex.test(email)) {
       setError('Please enter a valid email address');
       return;
     }
+
     try {
       const response = await axios.post('http://localhost:2030/login', { email, password });
-      console.log(response.data.token);
-
       if (response.status === 200) {
         Cookies.set('token', response.data.token);
-        navigate('/');
-
-        onLogin(email, password);
+        navigate('/dashboard');
       } else {
         setError('Login failed: Invalid credentials');
       }
-    } catch (err: any) {
-      if (err.response && err.response.data && err.response.data.message) {
-        setError(err.response.data.message);
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        setError(err.response?.data?.message ?? 'An unexpected error occurred. Please try again.');
+      } else {
+        setError('An unexpected error occurred. Please try again.');
       }
     }
   }
@@ -56,12 +57,6 @@ function Login({ onLogin }: LoginProps) {
     event.preventDefault();
   };
 
-  const token = Cookies.get('token');
-
-  if (token !== undefined) {
-    return <Navigate to="/dashboard" />;
-  }
-
   return (
     <div className="flex items-center h-screen justify-center p-5 bg-[url('https://res.cloudinary.com/djexsyuur/image/upload/v1726039195/image_5_d3dvjj.png')]">
       <div className="border-2 border-solid rounded-md border-green-800 w-[500px] h-fit flex flex-col justify-evenly gap-9 pt-16 pb-16 pl-16 pr-16 items-center p-4 max-sm:w-full">
@@ -73,7 +68,14 @@ function Login({ onLogin }: LoginProps) {
         <p className="text-silver h-6">Welcome to TableSprint Admin</p>
 
         <form className="flex flex-col w-full gap-6" onSubmit={handleSubmit}>
-          <TextField label="Email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="example@example.com" className="w-full rounded-full" />
+          <TextField
+            label="Email"
+            type="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            placeholder="example@example.com"
+            className="w-full rounded-full"
+          />
 
           <div className="flex flex-col gap-1 w-full">
             <TextField
@@ -100,10 +102,10 @@ function Login({ onLogin }: LoginProps) {
 
           {error && <div className="text-red-800">{error}</div>}
 
-          <button type="submit" className="w-530 h-58 top-803 gap-0 rounded-lg bg-violet-800 text-white p-2">
+          <button type="submit" className="w-full h-12 rounded-lg bg-violet-800 text-white p-2">
             Log In
           </button>
-          <Link to="registration"> New user?Register </Link>
+          <Link to="/registration"> New user? Register </Link>
         </form>
       </div>
 
@@ -143,65 +145,3 @@ function Login({ onLogin }: LoginProps) {
 }
 
 export default Login;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

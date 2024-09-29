@@ -7,7 +7,7 @@ import { FaEdit } from 'react-icons/fa';
 import { RiDeleteBin6Line } from 'react-icons/ri';
 import { Modal, TextField, Button, Switch, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle } from '@mui/material';
 import axios from 'axios';
-import { useTable } from 'react-table';
+import { useTable, Column, HeaderGroup, Row, Cell } from 'react-table';
 
 interface Category {
   id: number;
@@ -51,7 +51,7 @@ const Navbar: React.FC = () => {
   }, []);
 
   // Table Columns
-  const columns = React.useMemo(
+  const columns: Column<Category>[] = React.useMemo(
     () => [
       {
         Header: 'ID',
@@ -77,7 +77,7 @@ const Navbar: React.FC = () => {
       },
       {
         Header: 'Action',
-        Cell: ({ row }: { row: { original: Category } }) => (
+        Cell: ({ row }: { row: Row<Category> }) => (
           <div>
             <button onClick={() => handleEdit(row.original)} className="text-2xl px-2 py-1 rounded">
               <FaEdit />
@@ -93,7 +93,7 @@ const Navbar: React.FC = () => {
   );
 
   // Initialize Table
-  const tableInstance = useTable({ columns, data });
+  const tableInstance = useTable<Category>({ columns, data });
   const { getTableProps, getTableBodyProps, headerGroups, rows, prepareRow } = tableInstance;
 
   // Event Handlers for Edit/Delete
@@ -227,21 +227,28 @@ const Navbar: React.FC = () => {
               <form onSubmit={handleSubmit} className="space-y-4">
                 <TextField label="Category Name" fullWidth variant="outlined" value={categoryName} onChange={(e) => setCategoryName(e.target.value)} required />
                 <TextField label="Category Sequence" type="number" fullWidth variant="outlined" value={categorySequence} onChange={(e) => setCategorySequence(parseFloat(e.target.value) || '')} required />
-                <div className="flex items-center justify-between">
-                  <label htmlFor="status">Status:</label>
+                <div className="flex items-center mb-2">
+                  <span className="mr-2">Status:</span>
                   <Switch checked={status === 'Active'} onChange={() => setStatus(status === 'Active' ? 'Inactive' : 'Active')} />
-                  <span>{status}</span>
+                  <span className="ml-2">{status}</span>
+                </div>
+                <div className="border rounded-lg p-4 text-center">
+                  {imagePreview ? (
+                    <img src={imagePreview} alt="Preview" className="w-40 h-40 object-cover mx-auto mb-2" />
+                  ) : (
+                    <p>Upload Image</p>
+                  )}
+                  <input type="file" accept="image/*" onChange={handleImageUpload} />
                 </div>
 
-                <div className="border-2 border-dashed border-gray-400 rounded-lg p-4">
-                  <label className="block text-center mb-2">Upload Image</label>
-                  <input type="file" onChange={handleImageUpload} />
-                  {imagePreview && <img src={imagePreview} alt="Category Preview" className="mx-auto mt-2" width={100} height={100} />}
+                <div className="flex justify-between">
+                  <Button type="submit" variant="contained" color="primary">
+                    {isEditing ? 'Update Category' : 'Add Category'}
+                  </Button>
+                  <Button variant="outlined" color="secondary" onClick={handleClose}>
+                    Cancel
+                  </Button>
                 </div>
-
-                <Button type="submit" variant="contained" color="primary" className="w-full">
-                  {isEditing ? 'Update Category' : 'Add Category'}
-                </Button>
               </form>
             </div>
           </Modal>
@@ -251,26 +258,26 @@ const Navbar: React.FC = () => {
             <DialogTitle>Confirm Delete</DialogTitle>
             <DialogContent>
               <DialogContentText>
-                Are you sure you want to delete the category: <strong>{categoryToDelete?.category_name}</strong>?
+                Are you sure you want to delete the category "{categoryToDelete?.category_name}"?
               </DialogContentText>
             </DialogContent>
             <DialogActions>
-              <Button onClick={closeDeleteModal} color="primary">
-                Cancel
-              </Button>
-              <Button onClick={confirmDelete} color="secondary" autoFocus>
+              <Button onClick={confirmDelete} color="primary">
                 Delete
+              </Button>
+              <Button onClick={closeDeleteModal} color="secondary">
+                Cancel
               </Button>
             </DialogActions>
           </Dialog>
 
-          {/* Categories Table */}
+          {/* Table */}
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
+            <table {...getTableProps()} className="w-full border-collapse">
               <thead>
-                {headerGroups.map((headerGroup) => (
+                {headerGroups.map((headerGroup: HeaderGroup<Category>) => (
                   <tr {...headerGroup.getHeaderGroupProps()} className="bg-purple-950 text-white">
-                    {headerGroup.headers.map((column) => (
+                    {headerGroup.headers.map((column: any) => (
                       <th {...column.getHeaderProps()} className="p-3 border text-left">
                         {column.render('Header')}
                       </th>
@@ -279,11 +286,11 @@ const Navbar: React.FC = () => {
                 ))}
               </thead>
               <tbody {...getTableBodyProps()}>
-                {rows.map((row) => {
+                {rows.map((row: Row<Category>) => {
                   prepareRow(row);
                   return (
                     <tr {...row.getRowProps()} className="border-b hover:bg-gray-200">
-                      {row.cells.map((cell) => (
+                      {row.cells.map((cell: Cell<Category>) => (
                         <td {...cell.getCellProps()} className="p-3">
                           {cell.render('Cell')}
                         </td>
@@ -301,23 +308,3 @@ const Navbar: React.FC = () => {
 };
 
 export default Navbar;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -1,305 +1,293 @@
-import express from 'express';
-import mysql from 'mysql2';
-import cors from 'cors';
-import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
+import React, { useState, useEffect } from 'react';
+import Sidebar from '../sidebar/sidebar';
+import Navbar2 from '../navbar/navbar';
+import { BiCategoryAlt } from 'react-icons/bi';
+import { CiSearch } from 'react-icons/ci';
+import { FaEdit } from 'react-icons/fa';
+import { RiDeleteBin6Line } from 'react-icons/ri';
+import { Modal, TextField, Button, Switch, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle } from '@mui/material';
+import axios from 'axios';
+import { useTable, Column, HeaderGroup, Row, Cell } from 'react-table';
 
-
-
-import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
-import bodyParser from 'body-parser';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-
-
-
-const port = 2030;
-const app = express();
-
-app.use(express.json());
-app.use(cors());
-
-// Secret key for JWT
-const JWT_SECRET = 'kanna7266046';
-
-// Create a MySQL connection
-const connection = mysql.createConnection({
-  host: 'localhost',
-  user: 'karunakar',
-  password: '16771677',
-  database: 'sun',
-});
-
-// Connect using a callback
-connection.connect((err) => {
-  if (err) {
-    console.log('Error connecting to MySQL database:', err);
-    return;
-  }
-  console.log('Connected to MySQL database');
-});
-
-// Handle POST request for /register
-app.post('/register', (req, res) => {
-  if (req.body) {
-    const { email, password } = req.body;
-
-    // Validate inputs
-    if (!email || !password) {
-      return res.status(400).send({ message: 'Email and password are required' });
-    }
-
-    // Check if the email already exists
-    const checkQuery = 'SELECT * FROM userdetails WHERE email = ?';
-    connection.query(checkQuery, [email], (err, results) => {
-      if (err) {
-        console.log('Error executing check query:', err);
-        return res.status(500).send({ message: 'Error checking user existence' });
-      }
-
-      if (results.length > 0) {
-        // Email already exists
-        return res.status(400).send({ message: 'Email already registered' });
-      }
-
-      // Hash the password
-      bcrypt.hash(password, 10, (err, hashedPassword) => {
-        if (err) {
-          console.log('Error hashing password:', err);
-          return res.status(500).send({ message: 'Error registering user' });
-        }
-
-        // Define the insert query
-        const insertQuery = 'INSERT INTO userdetails (email, password) VALUES (?, ?)';
-        
-        // Execute the insert query
-        connection.query(insertQuery, [email, hashedPassword], (err, results) => {
-          if (err) {
-            console.log('Error executing insert query:', err);
-            return res.status(500).send({ message: 'Error registering user' });
-          }
-          res.send({ message: 'User registered successfully' });
-        });
-      });
-    });
-  } else {
-    res.status(400).send({ message: 'Request body is empty' });
-  }
-});
-
-// Handle POST request for /login
-// Handle POST request for /login
-app.post('/login', (req, res) => {
-  if (req.body) {
-    const { email, password } = req.body;
-    console.log(req.body)
-
-    // Validate inputs
-    if (!email || !password) {
-      return res.status(400).send({ message: 'Email and password are required' });
-    }
-
-    // Check if the email exists
-    const checkQuery = 'SELECT * FROM userdetails WHERE email = ?';
-    connection.query(checkQuery, [email], (err, results) => {
-      if (err) {
-        console.log('Error executing check query:', err);
-        return res.status(500).send({ message: 'Error checking user existence' });
-      }
-
-      if (results.length === 0) {
-        // Email does not exist
-        return res.status(401).send({ message: 'Invalid credentials. Please check your email and password.' });
-      }
-
-      const user = results[0];
-
-      // Compare the password with the hashed password in the database
-      bcrypt.compare(password, user.password, (err, isMatch) => {
-        if (err) {
-          console.log('Error comparing passwords:', err);
-          return res.status(500).send({ message: 'Error logging in' });
-        }
-
-        if (!isMatch) {
-          // Passwords do not match
-          return res.status(401).send({ message: 'Invalid credentials. Please check your email and password.' });
-        }
-
-        // Generate a JWT token
-        const token = jwt.sign({ email: user.email }, JWT_SECRET, { expiresIn: '1h' });
-
-        res.send({ message: 'Login successful', token });
-      });
-    });
-  } else {
-    res.status(400).send({ message: 'Request body is empty' });
-  }
-});
-
-
-
-
-
-
-// Multer setup for file uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'uploads/');
-  },
-  filename: (req, file, cb) => {
-    cb(null, Date.now() + path.extname(file.originalname));
-  }
-});
-
-const upload = multer({ storage });
-
-const uploadsDir = path.join(__dirname, 'uploads');
-
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
+interface Category {
+  id: number;
+  category_name: string;
+  image_url: string;
+  status: string;
+  category_sequence: number;
+  created_at: string;
 }
 
+const Navbar: React.FC = () => {
+  // Modal States
+  const [open, setOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [categoryName, setCategoryName] = useState('');
+  const [categorySequence, setCategorySequence] = useState<number | ''>('');
+  const [status, setStatus] = useState<string>('Inactive');
+  const [image, setImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
 
-// Body-parser middleware
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+  // Table Data
+  const [data, setData] = useState<Category[]>([]);
 
-// Serve static files from 'uploads' folder
-app.use('/uploads', express.static('uploads'));
+  // Delete Modal States
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
 
-// API endpoint to handle image upload and metadata saving
-app.post('/upload', upload.single('image'), (req, res) => {
-  const { category_name, category_sequence } = req.body;
-  const image = req.file;
+  // Fetch data on component mount
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await axios.get('http://localhost:2030/fetch-categories');
+        setData(response.data);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      }
+    };
 
-  if (!image) {
-    return res.status(400).send('No image file uploaded.');
-  }
+    fetchData();
+  }, []);
 
-  const imageUrl = `/uploads/${image.filename}`;
-  const sql = 'INSERT INTO category_images (category_name, category_sequence, image_url) VALUES (?, ?, ?)';
+  // Table Columns
+  const columns: Column<Category>[] = React.useMemo(
+    () => [
+      {
+        Header: 'ID',
+        accessor: 'id',
+      },
+      {
+        Header: 'Category Name',
+        accessor: 'category_name',
+      },
+      {
+        Header: 'Image',
+        accessor: 'image_url',
+        Cell: ({ cell: { value } }: { cell: { value: string } }) => (
+          <img src={`http://localhost:2030${value}`} alt="Category" width={50} height={50} />
+        ),
+      },
+      {
+        Header: 'Status',
+        accessor: 'status',
+        Cell: ({ cell: { value } }: { cell: { value: string } }) => (
+          <span className={value === 'Active' ? 'text-green-500' : 'text-red-500'}>{value}</span>
+        ),
+      },
+      {
+        Header: 'Sequence',
+        accessor: 'category_sequence',
+      },
+      {
+        Header: 'Action',
+        Cell: ({ row }: { row: Row<Category> }) => (
+          <div>
+            <button onClick={() => handleEdit(row.original)} className="text-2xl px-2 py-1 rounded">
+              <FaEdit />
+            </button>
+            <button onClick={() => openDeleteModal(row.original)} className="text-2xl px-2 py-1 rounded">
+              <RiDeleteBin6Line />
+            </button>
+          </div>
+        ),
+      },
+    ],
+    []
+  );
 
-  connection.query(sql, [category_name, category_sequence, imageUrl], (err, result) => {
-    if (err) {
-      console.error('Error inserting image data:', err);
-      return res.status(500).send('Failed to save image data.');
+  // Initialize Table
+  const tableInstance = useTable<Category>({ columns, data });
+  const { getTableProps, getTableBodyProps, headerGroups, rows, prepareRow } = tableInstance;
+
+  // Event Handlers for Edit/Delete
+  const handleEdit = (category: Category) => {
+    setIsEditing(true);
+    setEditingCategory(category);
+    setCategoryName(category.category_name);
+    setCategorySequence(category.category_sequence);
+    setStatus(category.status);
+    setImagePreview(`http://localhost:2030${category.image_url}`);
+    setOpen(true);
+  };
+
+  const openDeleteModal = (category: Category) => {
+    setCategoryToDelete(category);
+    setIsDeleteModalOpen(true);
+  };
+
+  const closeDeleteModal = () => {
+    setCategoryToDelete(null);
+    setIsDeleteModalOpen(false);
+  };
+
+  const confirmDelete = async () => {
+    if (categoryToDelete) {
+      try {
+        await axios.delete(`http://localhost:2030/delete-category/${categoryToDelete.id}`);
+        // Refetch categories after deletion
+        const response = await axios.get('http://localhost:2030/fetch-categories');
+        setData(response.data);
+        closeDeleteModal();
+        alert('Category deleted successfully');
+      } catch (error) {
+        console.error('Error deleting category:', error);
+        alert('Failed to delete category');
+      }
     }
-    res.send({ message: 'Image uploaded and data saved successfully!', imageUrl });
-  });
-});
+  };
 
+  // Handlers for Modal
+  const handleOpen = () => {
+    setIsEditing(false);
+    setEditingCategory(null);
+    setCategoryName('');
+    setCategorySequence('');
+    setStatus('Inactive');
+    setImagePreview(null);
+    setOpen(true);
+  };
 
+  const handleClose = () => {
+    setOpen(false);
+    setImage(null);
+    setImagePreview(null);
+  };
 
-
-
-// API endpoint to fetch categories
-app.get('/fetch-categories', (req, res) => {
-  const sql = 'SELECT * FROM category_images';
-  
-  connection.query(sql, (err, results) => {
-    if (err) {
-      console.error('Error fetching categories:', err);
-      return res.status(500).send('Failed to fetch categories.');
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files && event.target.files[0]) {
+      const file = event.target.files[0];
+      setImage(file);
+      setImagePreview(URL.createObjectURL(file));
     }
-    res.send(results);
-  });
-});
+  };
 
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
 
-app.put('/update-category/:id', upload.single('image'), (req, res) => {
-  const { id } = req.params;
-  console.log(id)
-  const { category_name, category_sequence, status } = req.body;
-  const image = req.file;
-
-  // Validate inputs
-  if (!category_name || !category_sequence || !status) {
-    return res.status(400).send({ message: 'Category name, sequence, and status are required' });
-  }
-
-  // Prepare the SQL query to update category data
-  let sql = 'UPDATE category_images SET category_name = ?, category_sequence = ?, status = ?';
-  const params = [category_name, category_sequence, status];
-
-  if (image) {
-    // If there's an image file, update the image URL as well
-    const imageUrl = `/uploads/${image.filename}`;
-    sql += ', image_url = ?';
-    params.push(imageUrl);
-  }
-
-  sql += ' WHERE id = ?';
-  params.push(id);
-
-  connection.query(sql, params, (err, result) => {
-    if (err) {
-      console.error('Error updating category data:', err);
-      return res.status(500).send({ message: 'Failed to update category data' });
-    }
-    res.send({ message: 'Category updated successfully!' });
-  });
-});
-
-
-
-
-app.delete('/delete-category/:id', (req, res) => {
-  const categoryId = req.params.id;
-  
-  // Delete the category from the database
-  const query = 'DELETE FROM category_images WHERE id = ?';
-  
-  connection.query(query, [categoryId], (err, result) => {
-    if (err) {
-      console.error('Error deleting category:', err);
-      return res.status(500).json({ error: 'Failed to delete category' });
+    const formData = new FormData();
+    formData.append('category_name', categoryName);
+    formData.append('category_sequence', String(categorySequence));
+    formData.append('status', status);
+    if (image) {
+      formData.append('image', image);
     }
 
-    if (result.affectedRows > 0) {
-      return res.status(200).json({ message: 'Category deleted successfully' });
-    } else {
-      return res.status(404).json({ error: 'Category not found' });
+    try {
+      const response = isEditing
+        ? await axios.put(`http://localhost:2030/update-category/${editingCategory?.id}`, formData)
+        : await axios.post('http://localhost:2030/upload', formData);
+
+      if (response.status === 200 || response.status === 201) {
+        alert(isEditing ? 'Category updated successfully!' : 'Category added successfully!');
+        const dataResponse = await axios.get('http://localhost:2030/fetch-categories');
+        setData(dataResponse.data);
+      } else {
+        alert('Failed to submit category');
+      }
+    } catch (error) {
+      console.error('Error submitting form:', error);
+      alert('An error occurred');
     }
-  });
-});
 
+    handleClose();
+  };
 
+  return (
+    <div className="flex flex-col w-full overflow-x-hidden pr-1">
+      <Navbar2 />
+      <div className="flex gap-x-7 pl-2">
+        <div> <Sidebar/> </div>
+        
+        <div className="h-screen w-full flex flex-col gap-4">
+          <div className="flex items-center p-2 justify-between gap-x-8">
+            <div className="flex items-center gap-x-3 w-full">
+              <BiCategoryAlt className="text-4xl" />
+              <b className="text-2xl">Category</b>
+              <div className="max-w-90 border-3 flex items-center rounded-lg p-1">
+                <CiSearch className="text-2xl" />
+                <input className="border-none outline-none w-full" type="search" placeholder="Search Category" />
+              </div>
+            </div>
+            <Button variant="contained" color="primary" onClick={handleOpen} className="bg-purple-950 whitespace-nowrap text-white border-2 p-2 rounded-lg">
+              Add Category
+            </Button>
+          </div>
 
-app.get('/fetch-categories', (req, res) => {
-  const searchQuery = req.query.q ? `%${req.query.q}%` : '%%'; // Search query param if present
-  const query = 'SELECT * FROM category_images WHERE category_name LIKE ?';
+          {/* Modal */}
+          <Modal open={open} onClose={handleClose} aria-labelledby="modal-title" aria-describedby="modal-description">
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white shadow-lg rounded-lg p-6 w-96">
+              <h2 id="modal-title" className="text-center text-xl font-bold mb-4">
+                {isEditing ? 'Edit Category' : 'Add Category'}
+              </h2>
 
-  connection.query(query, [searchQuery], (error, results) => {
-    if (error) {
-      console.error('Error fetching categories:', error);
-      res.status(500).send('Internal Server Error');
-    } else {
-      res.json(results);
-    }
-  });
-});
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <TextField label="Category Name" fullWidth variant="outlined" value={categoryName} onChange={(e) => setCategoryName(e.target.value)} required />
+                <TextField label="Category Sequence" type="number" fullWidth variant="outlined" value={categorySequence} onChange={(e) => setCategorySequence(parseFloat(e.target.value) || '')} required />
+                <div className="flex items-center mb-2">
+                  <span className="mr-2">Status:</span>
+                  <Switch checked={status === 'Active'} onChange={() => setStatus(status === 'Active' ? 'Inactive' : 'Active')} />
+                  <span className="ml-2">{status}</span>
+                </div>
+                <div className="border rounded-lg p-4 text-center">
+                  {imagePreview ? (
+                    <img src={imagePreview} alt="Preview" width={100} height={100} className="mb-2" />
+                  ) : (
+                    <p>No image uploaded</p>
+                  )}
+                  <input type="file" onChange={handleImageUpload} accept="image/*" />
+                </div>
+                <Button type="submit" variant="contained" color="primary" className="w-full">
+                  {isEditing ? 'Update' : 'Add'}
+                </Button>
+              </form>
+            </div>
+          </Modal>
 
+          {/* Data Table */}
+          <div className="overflow-auto rounded-lg">
+            <table {...getTableProps()} className="min-w-full bg-white">
+              <thead>
+                {headerGroups.map((headerGroup: HeaderGroup<Category>) => (
+                  <tr {...headerGroup.getHeaderGroupProps()} className="bg-gray-200 text-gray-600">
+                    {headerGroup.headers.map((column: Column<Category>) => (
+                      <th {...column.getHeaderProps()} className="py-2 px-4 text-left">{column.render('Header')}</th>
+                    ))}
+                  </tr>
+                ))}
+              </thead>
+              <tbody {...getTableBodyProps()}>
+                {rows.map((row: Row<Category>) => {
+                  prepareRow(row);
+                  return (
+                    <tr {...row.getRowProps()} className="border-b hover:bg-gray-100">
+                      {row.cells.map((cell: Cell<Category>) => (
+                        <td {...cell.getCellProps()} className="py-2 px-4">{cell.render('Cell')}</td>
+                      ))}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
 
+          {/* Delete Modal */}
+          <Dialog open={isDeleteModalOpen} onClose={closeDeleteModal}>
+            <DialogTitle>Delete Category</DialogTitle>
+            <DialogContent>
+              <DialogContentText>
+                Are you sure you want to delete the category "{categoryToDelete?.category_name}"?
+              </DialogContentText>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={closeDeleteModal} color="primary">Cancel</Button>
+              <Button onClick={confirmDelete} color="secondary">Delete</Button>
+            </DialogActions>
+          </Dialog>
+        </div>
+      </div>
+    </div>
+  );
+};
 
-
-app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
-});
-
-
-
-
-
-
-
-
-
-
-
-
+export default Navbar;
