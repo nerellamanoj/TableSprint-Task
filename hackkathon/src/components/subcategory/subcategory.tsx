@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import Sidebar from '../sidebar/sidebar';
 import Navbar from '../navbar/navbar';
-import { BiCategoryAlt } from 'react-icons/bi';
 import { CiSearch } from 'react-icons/ci';
 import { FaEdit } from 'react-icons/fa';
 import { RiDeleteBin6Line } from 'react-icons/ri';
 import { Modal, TextField, Button, Switch, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle } from '@mui/material';
 import axios from 'axios';
 import { useTable, Column, HeaderGroup, Row } from 'react-table';
-import "./Subcategory.module.css"
+import './Subcategory.module.css';
+
+const API_BASE_URL = 'http://localhost:2030';
 
 interface Subcategory {
   id: number;
@@ -42,7 +43,7 @@ const Subcategory: React.FC = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await axios.get('http://localhost:2030/fetch-subcategories');
+        const response = await axios.get(`${API_BASE_URL}/fetch-subcategories`);
         setData(response.data);
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -55,19 +56,13 @@ const Subcategory: React.FC = () => {
   // Table Columns
   const columns: Column<Subcategory>[] = React.useMemo(
     () => [
-      {
-        Header: 'ID',
-        accessor: 'id',
-      },
-      {
-        Header: 'Subcategory Name',
-        accessor: 'subcategory_name',
-      },
+      { Header: 'ID', accessor: 'id' },
+      { Header: 'Subcategory Name', accessor: 'subcategory_name' },
       {
         Header: 'Image',
         accessor: 'image_url',
         Cell: ({ cell: { value } }: { cell: { value: string } }) => (
-          <img src={`http://localhost:2030${value}`} alt="Subcategory" width={50} height={50} />
+          <img src={`${API_BASE_URL}${value}`} alt="Subcategory" width={50} height={50} />
         ),
       },
       {
@@ -77,20 +72,17 @@ const Subcategory: React.FC = () => {
           <span className={value === 'Active' ? 'text-green-500' : 'text-red-500'}>{value}</span>
         ),
       },
-      {
-        Header: 'Sequence',
-        accessor: 'subcategory_sequence',
-      },
+      { Header: 'Sequence', accessor: 'subcategory_sequence' },
       {
         Header: 'Action',
         Cell: ({ row }: { row: Row<Subcategory> }) => (
           <div>
-            <button onClick={() => handleEdit(row.original)} className="text-2xl px-2 py-1 rounded">
+            <Button onClick={() => handleEdit(row.original)} className="text-2xl px-2 py-1 rounded">
               <FaEdit />
-            </button>
-            <button onClick={() => openDeleteModal(row.original)} className="text-2xl px-2 py-1 rounded">
+            </Button>
+            <Button onClick={() => openDeleteModal(row.original)} className="text-2xl px-2 py-1 rounded">
               <RiDeleteBin6Line />
-            </button>
+            </Button>
           </div>
         ),
       },
@@ -109,7 +101,7 @@ const Subcategory: React.FC = () => {
     setSubcategoryName(subcategory.subcategory_name);
     setSubcategorySequence(subcategory.subcategory_sequence);
     setStatus(subcategory.status);
-    setImagePreview(`http://localhost:2030${subcategory.image_url}`);
+    setImagePreview(`${API_BASE_URL}${subcategory.image_url}`);
     setOpen(true);
   };
 
@@ -126,10 +118,8 @@ const Subcategory: React.FC = () => {
   const confirmDelete = async () => {
     if (subcategoryToDelete) {
       try {
-        await axios.delete(`http://localhost:2030/delete-subcategory/${subcategoryToDelete.id}`);
-        // Refetch subcategories after deletion
-        const response = await axios.get('http://localhost:2030/fetch-subcategories');
-        setData(response.data);
+        await axios.delete(`${API_BASE_URL}/delete-subcategory/${subcategoryToDelete.id}`);
+        await refreshData(); // Refetch subcategories after deletion
         closeDeleteModal();
         alert('Subcategory deleted successfully');
       } catch (error) {
@@ -157,8 +147,8 @@ const Subcategory: React.FC = () => {
   };
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files && event.target.files[0]) {
-      const file = event.target.files[0];
+    const file = event.target.files?.[0] || null;
+    if (file) {
       setImage(file);
       setImagePreview(URL.createObjectURL(file));
     }
@@ -177,20 +167,23 @@ const Subcategory: React.FC = () => {
 
     try {
       if (isEditing && editingSubcategory) {
-        await axios.put(`http://localhost:2030/update-subcategory/${editingSubcategory.id}`, formData);
+        await axios.put(`${API_BASE_URL}/update-subcategory/${editingSubcategory.id}`, formData);
         alert('Subcategory updated successfully');
       } else {
-        await axios.post('http://localhost:2030/upload', formData);
+        await axios.post(`${API_BASE_URL}/upload`, formData);
         alert('Subcategory added successfully');
       }
       handleClose();
-      // Refetch subcategories after submission
-      const response = await axios.get('http://localhost:2030/fetch-subcategories');
-      setData(response.data);
+      await refreshData(); // Refetch subcategories after submission
     } catch (error) {
       console.error('Error saving subcategory:', error);
       alert('Failed to save subcategory');
     }
+  };
+
+  const refreshData = async () => {
+    const response = await axios.get(`${API_BASE_URL}/fetch-subcategories`);
+    setData(response.data);
   };
 
   return (
@@ -213,7 +206,7 @@ const Subcategory: React.FC = () => {
             <thead>
               {headerGroups.map((headerGroup: HeaderGroup<Subcategory>) => (
                 <tr {...headerGroup.getHeaderGroupProps()} className="bg-gray-100">
-                  {headerGroup.headers.map((column: any) => (
+                  {headerGroup.headers.map((column) => (
                     <th {...column.getHeaderProps()} className="border border-gray-300 px-4 py-2">
                       {column.render('Header')}
                     </th>
@@ -240,7 +233,7 @@ const Subcategory: React.FC = () => {
           {/* Add/Edit Modal */}
           <Modal open={open} onClose={handleClose}>
             <div className="p-4 bg-white rounded shadow-md">
-              <h2 className="text-lg font-semibold">{isEditing ? 'Edit Subcategory' : 'Add Subcategory'}</h2>
+              <h2 className="text-lg font-bold">{isEditing ? 'Edit' : 'Add'} Subcategory</h2>
               <form onSubmit={handleSubmit}>
                 <TextField
                   label="Subcategory Name"
@@ -251,25 +244,21 @@ const Subcategory: React.FC = () => {
                 />
                 <TextField
                   label="Subcategory Sequence"
+                  type="number"
                   value={subcategorySequence}
                   onChange={(e) => setSubcategorySequence(Number(e.target.value))}
                   fullWidth
-                  type="number"
                   required
                 />
-                <div>
-                  <label>
-                    Status:
-                    <Switch
-                      checked={status === 'Active'}
-                      onChange={(e) => setStatus(e.target.checked ? 'Active' : 'Inactive')}
-                    />
-                  </label>
+                <div className="flex items-center">
+                  <span>Status: </span>
+                  <Switch
+                    checked={status === 'Active'}
+                    onChange={() => setStatus((prev) => (prev === 'Active' ? 'Inactive' : 'Active'))}
+                  />
                 </div>
-                <div>
-                  <input type="file" accept="image/*" onChange={handleImageUpload} />
-                  {imagePreview && <img src={imagePreview} alt="Preview" width={100} />}
-                </div>
+                <input type="file" accept="image/*" onChange={handleImageUpload} />
+                {imagePreview && <img src={imagePreview} alt="Preview" width={100} height={100} />}
                 <Button type="submit" variant="contained" color="primary" className="mt-2">
                   {isEditing ? 'Update' : 'Add'}
                 </Button>
@@ -277,7 +266,7 @@ const Subcategory: React.FC = () => {
             </div>
           </Modal>
 
-          {/* Delete Confirmation Modal */}
+          {/* Delete Confirmation Dialog */}
           <Dialog open={isDeleteModalOpen} onClose={closeDeleteModal}>
             <DialogTitle>Delete Subcategory</DialogTitle>
             <DialogContent>
